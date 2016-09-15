@@ -1,16 +1,11 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+from werkzeug.serving import run_simple
+from werkzeug.wsgi import DispatcherMiddleware
+from example_app import app as example_app
 
-from flask import Flask
+app = DispatcherMiddleware(example_app, {})
 
-app = Flask(__name__)
-
-
-@app.route('/')
-def hello_word():
-    return '<h1>Hello, world!</h1>'
-
-
-@app.route('/home')
-def home():
-    return '<h2>Hello, home!</h2>'
+if __name__ == '__main__':
+    run_simple('localhost', 5000, app,
+               use_reloader=True,
+               use_debugger=True,
+               use_evalex=True)
