@@ -1,6 +1,7 @@
+# -*- coding: utf-8 -*-
 # Fabfile to:
 #    - update the remote system(s)
-#    - download and install an application
+#    - download and install an
 
 # Import Fabric's API module
 from fabric.api import *
@@ -13,11 +14,12 @@ env.hosts = ['fcgomes.com.br', ]
 PROJECT_URL = 'git@github.com:fcgomes92/fab-flask-example.git'
 UWSGI_FILE = """
 [uwsgi]
-chdir = {}
+chdir = {1}
+virtualenv = {0}
 
 module = app:app
 
-socket = bin/app.uwsgi.socket
+socket = {0}/bin/app.uwsgi.socket
 chmod-socket = 664
 vacuum = true
 
@@ -41,7 +43,7 @@ setgid www-data
 
 script
     cd {}
-    ./bin/activate
+    . bin/activate
     cd {}
     uwsgi --ini wsgi.ini
 end script
@@ -58,20 +60,23 @@ def update_upgrade():
 
 
 def create_wsgi_ini():
+    local_file = os.path.join(env.local_dir, 'local_wsgi.ini')
     with cd('/etc/init/'):
-        with open('local_wsgi.ini', 'w') as f:
+        with open(local_file, 'w') as f:
             f.write(WSGI_INI_FILE.format(
-                'www-data', env.venv, env.remote_dir))
-            put(f, 'fab_flask_example.ini')
+                'fab-flask-example', 'www-data', env.venv, env.remote_dir))
             f.close()
+        put(local_file, 'fab_flask_example.ini')
 
 
 def create_uwsgi_file():
+    local_file = os.path.join(env.local_dir, 'local_uwsgi.ini')
     with cd(env.remote_dir):
-        with open('local_wsgi.ini', 'w') as f:
-            f.write(UWSGI_FILE.format(env.venv))
-            put(f, 'wsgi.ini')
+        with open(local_file, 'w') as f:
+            f.write(UWSGI_FILE.format(env.venv,
+                                      env.remote_dir))
             f.close()
+        put(local_file, 'wsgi.ini')
 
 
 def create_nginx_conf():
@@ -113,8 +118,11 @@ def deploy():
     configure()
     create_venv()
     update_project()
-    with cd(env.remote_dir):
-        run('{} install -r requirements.txt'.format(env.pip))
+    # try:
+    #     with cd(env.remote_dir):
+    #         run('{} install -r requirements.txt'.format(env.pip))
+    # except Exception:
+    #     print('não rolou...')
     create_wsgi_ini()
     create_uwsgi_file()
     env.restart_server = lambda: run('sudo service uwsgi restart')
