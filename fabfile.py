@@ -18,7 +18,7 @@ SYSTEM_DEPS = []
 RUN_USER = 'www-data'
 RUN_GROUP = 'www-data'
 STATIC_URL = '/static/'
-STATIC_DIR = '/var/www/html/public_html'
+STATIC_DIR = '/apps/fab_flask_example/fab_flask_example/example_app/static'
 INIT_DIR = '/etc/init'
 SITES_AVAILABLE = '/etc/nginx/sites-available'
 SITES_ENABLED = '/etc/nginx/sites-enabled'
@@ -209,6 +209,13 @@ def _create_log_folder():
         run('mkdir {} -p'.format(env.log_path))
 
 
+def _build_static():
+    if not env.configured:
+        configure()
+    with cd(env.app_dir):
+        run('./build-static.sh')
+
+
 def sys_update_upgrade():
     run("aptitude update")
     run("aptitude -y upgrade")
@@ -223,8 +230,9 @@ def sys_install_dependencies():
 def update_app():
     if not env.configured:
         configure()
-    with cd(env.app_dir):
-        run('git pull')
+    if _is_dir(env.app_dir):
+        with cd(env.app_dir):
+            run('git pull')
 
 
 def configure():
@@ -275,6 +283,7 @@ def full_deploy(update=False, clone=False, commit_msg=None):
         _clone_project()
     else:
         update_app()
+    _build_static
     _create_wsgi_ini()
     _create_uwsgi_file()
     _create_nginx_conf()
