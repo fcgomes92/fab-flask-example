@@ -19,7 +19,7 @@ SITES_AVAILABLE = '/etc/nginx/sites-available'
 SITES_ENABLED = '/etc/nginx/sites-enabled'
 SERVER_NAMES = ['fcgomes.com.br', 'www.fcgomes.com.br', ]
 
-_is_dir = lambda x: bool(
+_is_dir = lambda d: bool(
     int(run('if test -d {}; then echo 1; else echo 0; fi'.format(d))))
 
 _exists = lambda f: bool(
