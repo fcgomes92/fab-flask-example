@@ -288,7 +288,7 @@ def full_deploy(update=False, clone=False, commit_msg=None):
     _create_wsgi_ini()
     _create_uwsgi_file()
     _create_nginx_conf()
-    nginx('reload')
+    nginx('restart')
 
 
 def deploy():
