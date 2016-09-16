@@ -265,7 +265,8 @@ def commit(msg=None):
     """.format(env.local_dir, msg))
 
 
-def full_deploy(update=False, clone=False, commit=None):
+def full_deploy(update=False, clone=False, commit_msg=None):
+    commit(commit_msg)
     if int(update):
         sys_update_upgrade()
     _create_venv()
