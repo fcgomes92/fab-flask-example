@@ -1,9 +1,4 @@
 # -*- coding: utf-8 -*-
-# Fabfile to:
-#    - update the remote system(s)
-#    - download and install an
-
-# Import Fabric's API module
 from fabric.api import env, put, cd, run, sudo, local
 import os
 
@@ -24,14 +19,11 @@ SITES_AVAILABLE = '/etc/nginx/sites-available'
 SITES_ENABLED = '/etc/nginx/sites-enabled'
 SERVER_NAMES = ['fcgomes.com.br', 'www.fcgomes.com.br', ]
 
-
-def _is_dir(d): return lambda x: bool(
+_is_dir = lambda x: bool(
     int(run('if test -d {}; then echo 1; else echo 0; fi'.format(d))))
 
-
-def _exists(f): return lambda x: bool(
+_exists = lambda f: bool(
     int(run('if test -f {}; then echo 1; else echo 0; fi'.format(f))))
-
 
 nginx = lambda op: sudo('service nginx {}'.format(op))
 
@@ -101,7 +93,7 @@ set -e
 
 start() {{
   echo "Starting '$NAME'... "
-  exec uwsgi --emperor "/apps/*/*/wsgi.ini" --logto /var/log/uwsgi.log --uid {1}
+  exec uwsgi --emperor "/apps/*/*/wsgi.ini" --logto /var/log/uwsgi.log --uid {1} &
   echo "done"
   return
 }}
