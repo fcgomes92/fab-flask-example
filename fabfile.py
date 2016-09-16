@@ -4,7 +4,7 @@
 #    - download and install an
 
 # Import Fabric's API module
-from fabric.api import env, put, cd, run, sudo
+from fabric.api import env, put, cd, run, sudo, local
 import os
 
 env.local_dir = os.path.join(os.path.dirname(__file__), '')
@@ -23,6 +23,20 @@ INIT_DIR = '/etc/init'
 SITES_AVAILABLE = '/etc/nginx/sites-available'
 SITES_ENABLED = '/etc/nginx/sites-enabled'
 SERVER_NAMES = ['fcgomes.com.br', 'www.fcgomes.com.br', ]
+
+
+def _is_dir(d): return lambda x: bool(
+    int(run('if test -d {}; then echo 1; else echo 0; fi'.format(d))))
+
+
+def _exists(f): return lambda x: bool(
+    int(run('if test -f {}; then echo 1; else echo 0; fi'.format(f))))
+
+
+def nginx(op): return lambda x: sudo('service nginx {}'.format(op))
+
+
+def wsgi(init, op): return lambda x: sudo('service {} {}'.format(init, op))
 
 
 def _generate_uwsgi_ini(app_dir, venv_dir, sock_path):
@@ -122,18 +136,24 @@ def _generate_nginx_conf(server_name, log_path, static_url,
 
 def _create_wsgi_ini():
     local_file = os.path.join(env.local_dir, 'local_wsgi.ini')
+    if not _is_dir(env.init_dir):
+        raise ValueError("Init dir ({}) doesn't exist!".format(env.init_dir))
+
     with cd(env.init_dir):
         with open(local_file, 'w') as f:
             f.write(
                 _generate_wsgi_ini(env.app_name, env.run_user, env.run_group,
                                    env.venv, env.app_dir))
             f.close()
-        put(local_file, 'fab_flask_example.ini')
+        put(local_file, env.init)
         os.remove(local_file)
 
 
 def _create_uwsgi_file():
     local_file = os.path.join(env.local_dir, 'local_uwsgi.ini')
+    if not _is_dir(env.app_dir):
+        raise ValueError("App dir ({}) doesn't exist!".format(env.app_dir))
+
     with cd(env.app_dir):
         with open(local_file, 'w') as f:
             f.write(_generate_uwsgi_ini(
@@ -148,6 +168,9 @@ def _create_nginx_conf():
         configure()
     local_file = os.path.join(env.local_dir, 'nginx.conf')
     conf_name = '{}.conf'.format(env.app_name)
+    if not _is_dir(env.sites_available) or not _is_dir(env.sites_enabled):
+        raise ValueError("Sites Availabe doesn't exist!")
+
     with cd(env.sites_available):
         with open(local_file, 'w') as f:
             f.write(_generate_nginx_conf(
@@ -155,7 +178,8 @@ def _create_nginx_conf():
                 env.static_url, env.static_dir, env.app_name, env.sock_path))
             f.close()
         put(local_file, conf_name)
-        sudo('rm {}'.format(os.path.join(env.sites_enabled, conf_name)))
+        if _exists(os.path.join(env.sites_enabled, conf_name)):
+            sudo('rm {}'.format(os.path.join(env.sites_enabled, conf_name)))
         sudo('ln -s {} {}'.format(os.path.join(env.sites_available, conf_name),
                                   env.sites_enabled))
         os.remove(local_file)
@@ -164,20 +188,25 @@ def _create_nginx_conf():
 def _create_venv():
     if not env.configured:
         configure()
-    run('mkdir {} -p'.format(env.venv))
+    if not _is_dir(env.venv):
+        run('mkdir {} -p'.format(env.venv))
     with cd(os.path.dirname(env.venv)):
         run('virtualenv -p python3 {}'.format(env.app_name))
 
 
 def _clone_project():
-    with cd(env.venv):
-        run('git clone {}'.format(PROJECT_URL))
+    if _is_dir(env.app_dir):
+        update_app()
+    else:
+        with cd(env.venv):
+            run('git clone {}'.format(PROJECT_URL))
 
 
 def _create_log_folder():
     if not env.configured:
         configure()
-    run('mkdir {} -p'.format(env.log_path))
+    if not _is_dir(env.log_path):
+        run('mkdir {} -p'.format(env.log_path))
 
 
 def sys_update_upgrade():
@@ -215,6 +244,7 @@ def configure():
 
     env.log_path = os.path.join(env.venv, 'log')
     env.init_dir = INIT_DIR
+    env.init = '{}.conf'.format(APP_NAME)
 
     env.sites_available = SITES_AVAILABLE
     env.sites_enabled = SITES_ENABLED
@@ -227,15 +257,27 @@ def configure():
     env.requirements = os.path.join(env.app_dir, 'requirements.txt')
 
 
-def full_deploy():
-    # sys_update_upgrade()
-    # _create_venv()
-    # _create_log_folder()
-    # _clone_project()
-    # update_app()
-    # _create_wsgi_ini()
-    # _create_uwsgi_file()
+def commit(msg=None):
+    if not msg:
+        msg = """A great commit message explaining: All These Things That I've Done!"""
+    local("""
+    cd {0}; git add . ; git commit -am "{1}" ; git push origin master;
+    """.format(env.local_dir, msg))
+
+
+def full_deploy(update=False, clone=False, commit=None):
+    if int(update):
+        sys_update_upgrade()
+    _create_venv()
+    _create_log_folder()
+    if int(clone):
+        _clone_project()
+    else:
+        update_app()
+    _create_wsgi_ini()
+    _create_uwsgi_file()
     _create_nginx_conf()
+    nginx('reload')
 
 
 def deploy():
