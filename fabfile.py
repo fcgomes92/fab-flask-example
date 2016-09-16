@@ -19,7 +19,7 @@ RUN_USER = 'www-data'
 RUN_GROUP = 'www-data'
 STATIC_URL = '/static/'
 STATIC_DIR = '/apps/fab_flask_example/fab_flask_example/example_app/static/'
-INIT_DIR = '/etc/init'
+INIT_DIR = '/etc/init.d'
 SITES_AVAILABLE = '/etc/nginx/sites-available'
 SITES_ENABLED = '/etc/nginx/sites-enabled'
 SERVER_NAMES = ['fcgomes.com.br', 'www.fcgomes.com.br', ]
@@ -33,10 +33,9 @@ def _exists(f): return lambda x: bool(
     int(run('if test -f {}; then echo 1; else echo 0; fi'.format(f))))
 
 
-def nginx(op): return lambda x: sudo('service nginx {}'.format(op))
+nginx = lambda op: sudo('service nginx {}'.format(op))
 
-
-def wsgi(init, op): return lambda x: sudo('service {} {}'.format(init, op))
+wsgi = lambda init, op: sudo('service {} {}'.format(init, op))
 
 
 def _generate_uwsgi_ini(app_dir, venv_dir, sock_path):
@@ -47,23 +46,25 @@ def _generate_uwsgi_ini(app_dir, venv_dir, sock_path):
     :return str:
     """
     return """
-        [uwsgi]
-        chdir = {0}
-        virtualenv = {1}
+[uwsgi]
+chdir={0}
+virtualenv={1}
 
-        module = app:app
+module = app:app
 
-        socket = {2}
-        chmod-socket = 664
-        vacuum = true
+socket={2}
+chmod-socket = 664
+pidfile={1}/bin/%n.pid
+daemonize={1}/bin/%n.log
+vacuum = true
 
-        die-on-term = true
+die-on-term = true
 
-        master = true
-        processes = 6
-        threads = 3
+master = true
+processes = 6
+threads = 3
 
-        stats = 0.0.0.0:9090
+stats = 0.0.0.0:9090
         """.strip().format(app_dir, venv_dir, sock_path)
 
 
@@ -78,20 +79,69 @@ def _generate_wsgi_ini(app_name, run_user, run_group,
     :return str:
     """
     return """
-        description "uWSGI instance to serve {0}"
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides:          uwsgi
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Required-Start:
+# Required-Stop:
+# Short-Description: uwsgi
+# Description:       uwsgi
+### END INIT INFO
 
-        start on runlevel [2345]
-        stop on runlevel [!2345]
+NAME="uwsgi"
+PATH="/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
+USER="{1}"
+GROUP="{2}"
 
-        setuid {1}
-        setgid {2}
+# Include functions
+set -e
+. /lib/lsb/init-functions
 
-        script
-            cd {3}
-            . bin/activate
-            cd {4}
-            uwsgi --ini wsgi.ini
-        end script
+start() {{
+  echo "Starting '$NAME'... "
+  exec uwsgi --emperor "/apps/*/*/wsgi.ini" --logto /var/log/uwsgi.log --uid {1}
+  echo "done"
+  return
+}}
+
+stop() {{
+  echo "Stopping '$NAME'... "
+  [ -z `cat /var/run/$NAME.pid 2>/dev/null` ] || \
+  while test -d /proc/$(cat /var/run/$NAME.pid); do
+    killall -s 15 $(cat /var/run/$NAME.pid) 15
+    sleep 0.5
+  done
+  [ -z `cat /var/run/$NAME.pid 2>/dev/null` ] || rm /var/run/$NAME.pid
+  echo "done"
+}}
+
+status() {{
+  status_of_proc -p /var/run/$NAME.pid "" $NAME && exit 0 || exit $?
+}}
+
+case "$1" in
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  restart)
+    stop
+    start
+    ;;
+  status)
+    status
+    ;;
+  *)
+    echo "Usage: $NAME {{start|stop|restart|status}}" >&2
+    exit 1
+    ;;
+esac
+
+exit 0
         """.strip().format(
         app_name, run_user, run_group, venv_dir, app_dir)
 
@@ -145,7 +195,9 @@ def _create_wsgi_ini():
                 _generate_wsgi_ini(env.app_name, env.run_user, env.run_group,
                                    env.venv, env.app_dir))
             f.close()
-        put(local_file, env.init)
+        put(local_file, 'uwsgi')
+        sudo('chmod +x {}'.format('uwsgi'))
+        sudo('update-rc.d {} defaults'.format('uwsgi'))
         os.remove(local_file)
 
 
@@ -217,6 +269,12 @@ def _build_static():
         run('./build-static.sh')
 
 
+def _configure_venv_permissions():
+    if not env.configured:
+        configure()
+    run('chown {}:{} {} -R'.format(env.run_user, env.run_group, env.venv))
+
+
 def sys_update_upgrade():
     run("aptitude update")
     run("aptitude -y upgrade")
@@ -253,7 +311,7 @@ def configure():
 
     env.log_path = os.path.join(env.venv, 'log')
     env.init_dir = INIT_DIR
-    env.init = '{}.conf'.format(APP_NAME)
+    env.init = format(APP_NAME)
 
     env.sites_available = SITES_AVAILABLE
     env.sites_enabled = SITES_ENABLED
@@ -284,11 +342,13 @@ def full_deploy(update=False, clone=False, commit_msg=None):
         _clone_project()
     else:
         update_app()
-    _build_static
+    # _build_static()
     _create_wsgi_ini()
     _create_uwsgi_file()
     _create_nginx_conf()
+    _configure_venv_permissions()
     nginx('restart')
+    wsgi('uwsgi', 'restart')
 
 
 def deploy():
