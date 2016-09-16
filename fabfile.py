@@ -18,7 +18,7 @@ SYSTEM_DEPS = []
 RUN_USER = 'www-data'
 RUN_GROUP = 'www-data'
 STATIC_URL = '/static/'
-STATIC_DIR = '/apps/fab_flask_example/fab_flask_example/example_app/static'
+STATIC_DIR = '/apps/fab_flask_example/fab_flask_example/example_app/static/'
 INIT_DIR = '/etc/init'
 SITES_AVAILABLE = '/etc/nginx/sites-available'
 SITES_ENABLED = '/etc/nginx/sites-enabled'
@@ -213,6 +213,7 @@ def _build_static():
     if not env.configured:
         configure()
     with cd(env.app_dir):
+        run('chmod +x build-static.sh')
         run('./build-static.sh')
 
 
