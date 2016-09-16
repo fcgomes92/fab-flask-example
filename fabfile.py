@@ -342,7 +342,7 @@ def full_deploy(update=False, clone=False, commit_msg=None):
         _clone_project()
     else:
         update_app()
-    # _build_static()
+    _build_static()
     _create_wsgi_ini()
     _create_uwsgi_file()
     _create_nginx_conf()
