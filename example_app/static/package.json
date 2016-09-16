@@ -1,0 +1,24 @@
+{
+  "name": "example_app",
+  "version": "1.0.0",
+  "description": "example app",
+  "main": "index.js",
+  "scripts": {
+    "scss": "find ./src/scss/*.scss -type f -printf '%f\n' | xargs -n1 -I {} -exec ./node_modules/node-sass/bin/node-sass --output-style compressed --output ./dist/css/ ./src/scss/{}",
+    "js": " find ./src/js/*.js -type f -printf '%f\n' | xargs -n1 -I {} -exec ./node_modules/browserify/bin/cmd.js ./src/js/{} -o ./dist/js/{} -d -g uglifyify",
+    "imgs": "cp ./src/img ./dist/ -R",
+    "fonts": "cp ./src/fonts ./dist/ -R",
+    "build": "npm run scss ; npm run js; npm run imgs; npm run fonts;"
+  },
+  "keywords": [
+    "example"
+  ],
+  "author": "Fernando Gomes (@fcgomes92)",
+  "license": "MIT",
+  "dependencies": {
+    "browserify": "^13.1.0",
+    "muicss": "^0.7.5",
+    "node-sass": "^3.9.3",
+    "uglifyify": "^3.0.3"
+  }
+}

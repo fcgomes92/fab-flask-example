@@ -1,0 +1,15 @@
+// import MUI colors
+@import "../../node_modules/muicss/lib/sass/mui/colors";
+
+// customize MUI variables
+$mui-primary-color:       mui-color('blue-grey', '500');
+$mui-primary-color-dark:  mui-color('blue-grey', '700');
+$mui-primary-color-light: mui-color('blue-grey', '300');
+
+$mui-accent-color:        mui-color('blue', '500');
+$mui-accent-color-dark:   mui-color('blue', '700');
+$mui-accent-color-light:  mui-color('blue', '300');
+
+// import MUI SASS
+@import "../../node_modules/muicss/lib/sass/mui";
+@import "home";
